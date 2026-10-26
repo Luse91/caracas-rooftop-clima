@@ -1,0 +1,42 @@
+name: Clima de Caracas
+
+# Copia el clima actual de Caracas (Open-Meteo) a GitHub Pages, que es un dominio
+# de confianza de VRChat. Así el mundo Caracas Rooftop lo descarga para todos,
+# aunque nadie tenga "Allow Untrusted URLs".
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: clima
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - name: Descargar clima
+        run: |
+          curl -fsS --retry 3 --max-time 20 'https://api.open-meteo.com/v1/forecast?latitude=10.4806&longitude=-66.9036&current=precipitation,rain,showers,weather_code&timezone=America%2FCaracas' -o nuevo.json
+          python3 -c "import json;d=json.load(open('nuevo.json'));assert 'current' in d" 
+          mv nuevo.json clima.json
+      - name: Guardar en el repo (mantiene vivo el cron)
+        run: |
+          git config user.name "clima-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add clima.json
+          git diff --cached --quiet || git commit -m "Clima $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - uses: actions/deploy-pages@v4
